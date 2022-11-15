@@ -1,0 +1,133 @@
+version: '3.8'
+services:
+  zookeeper:
+    image: bitnami/zookeeper:3
+    container_name: zookeeper
+    ports:
+      - 2181:2181
+    environment:
+      ALLOW_ANONYMOUS_LOGIN: yes
+  kafka:
+    image: bitnami/kafka:3
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_CFG_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      ALLOW_PLAINTEXT_LISTENER: yes
+      KAFKA_ZOOKEEPER_PROTOCOL: PLAINTEXT
+      KAFKA_CFG_LISTENERS: 'INTERNAL://:9093,CLIENT://:9092'
+      KAFKA_CFG_ADVERTISED_LISTENERS: 'INTERNAL://kafka:9093,CLIENT://kafka:9092'
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: 'CLIENT:PLAINTEXT,INTERNAL:PLAINTEXT'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'CLIENT'
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: true
+  akhq:
+    image: tchiotludo/akhq:dev
+    container_name: akhq
+    environment:
+      AKHQ_CONFIGURATION: |
+        akhq:
+          connections:
+            docker-kafka-server:
+              properties:
+                bootstrap.servers: "kafka:9092"
+    ports:
+      - 8001:8080
+    depends_on:
+      - kafka
+  redis:
+    image: 'redis:latest'
+  mongo:
+    image: mongo:latest
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+  init-service:
+    build:
+      dockerfile: Dockerfile.dev
+      context: ./init-service
+    volumes:
+      - /app/node_modules
+      - './init-service:/app'
+    depends_on:
+      - kafka
+      - mongo
+      - redis
+  auth-service:
+    build:
+      dockerfile: Dockerfile.dev
+      context: ./auth-service
+    depends_on:
+      - init-service
+    volumes:
+      - /app/node_modules
+      - './auth-service:/app'
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+  settings-service:
+    build:
+      dockerfile: Dockerfile.dev
+      context: ./settings-service
+    depends_on:
+      - init-service
+    volumes:
+      - /app/node_modules
+      - './settings-service:/app'
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+      # - REDIS_HOST=redis
+      # - REDIS_PORT=6379
+      # - PGUSER=postgres
+      # - PGHOST=postgres
+      # - PGDATABASE=postgres
+      # - PGPASSWORD=postgres
+      # - PGPORT=5432
+
+    
+    # environment:
+    #   - REDIS_HOST=redis
+    #   - REDIS_PORT=6379
+    #   - PGUSER=postgres
+    #   - PGHOST=postgres
+    #   - PGDATABASE=postgres
+    #   - PGPASSWORD=postgres
+    #   - PGPORT=5432
+  # producer:
+  #   build:
+  #     dockerfile: Dockerfile.dev
+  #     context: ./kafka-producer-service
+  #   volumes:
+  #     - /app/node_modules
+  #     - './kafka-producer-service:/app'
+  #   # environment:
+  #   #   - REDIS_HOST=redis
+  #   #   - REDIS_PORT=6379
+  #   #   - PGUSER=postgres
+  #   #   - PGHOST=postgres
+  #   #   - PGDATABASE=postgres
+  #   #   - PGPASSWORD=postgres
+  #   #   - PGPORT=5432
+  # consumer:
+  #   build:
+  #     dockerfile: Dockerfile.dev
+  #     context: ./kafka-consumer-service
+  #   volumes:
+  #     - /app/node_modules
+  #     - './kafka-consumer-service:/app'
+  #   # environment:
+  #   #   - REDIS_HOST=redis
+  #   #   - REDIS_PORT=6379
+  #   #   - PGUSER=postgres
+  #   #   - PGHOST=postgres
+  #   #   - PGDATABASE=postgres
+  #   #   - PGPASSWORD=postgres
+  #   #   - PGPORT=5432
+
+    
